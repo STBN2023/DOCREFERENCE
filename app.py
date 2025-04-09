@@ -4,40 +4,46 @@ from pptx import Presentation
 from pptx.util import Pt
 from io import BytesIO
 
+# Fonction finale avec gestion valeurs vides
 def remplacer_placeholder(slide, placeholder, nouvelle_valeur):
     for shape in slide.shapes:
         if shape.has_text_frame:
             for paragraph in shape.text_frame.paragraphs:
                 if placeholder in paragraph.text:
-                    texte_complet = paragraph.text.replace(placeholder, nouvelle_valeur)
+                    premier_run = paragraph.runs[0] if paragraph.runs else None
+                    if premier_run:
+                        style = {
+                            'font_name': premier_run.font.name,
+                            'font_size': premier_run.font.size,
+                            'bold': premier_run.font.bold,
+                            'italic': premier_run.font.italic,
+                            'underline': premier_run.font.underline,
+                            'color': premier_run.font.color.rgb if premier_run.font.color.type else None,
+                        }
+                    else:
+                        style = None
 
-                    styles = []
-                    for run in paragraph.runs:
-                        styles.append({
-                            'font_name': run.font.name,
-                            'font_size': run.font.size,
-                            'bold': run.font.bold,
-                            'italic': run.font.italic,
-                            'underline': run.font.underline,
-                            'color': run.font.color.rgb if run.font.color.type else None,
-                        })
+                    remplacement = nouvelle_valeur if nouvelle_valeur and pd.notna(nouvelle_valeur) else ""
 
-                    for _ in range(len(paragraph.runs)):
-                        paragraph.runs[0]._element.getparent().remove(paragraph.runs[0]._element)
+                    texte_modifie = paragraph.text.replace(placeholder, remplacement)
 
-                    run = paragraph.add_run()
-                    run.text = texte_complet
-                    
-                    if styles:
-                        run.font.name = styles[0]['font_name']
-                        run.font.size = styles[0]['font_size']
-                        run.font.bold = styles[0]['bold']
-                        run.font.italic = styles[0]['italic']
-                        run.font.underline = styles[0]['underline']
-                        if styles[0]['color']:
-                            run.font.color.rgb = styles[0]['color']
+                    p = paragraph._element
+                    for r in list(p):
+                        p.remove(r)
 
-st.title("🚀 Générateur PPTX Final (Style conservé)")
+                    nouveau_run = paragraph.add_run()
+                    nouveau_run.text = texte_modifie
+
+                    if style:
+                        nouveau_run.font.name = style['font_name']
+                        nouveau_run.font.size = style['font_size']
+                        nouveau_run.font.bold = style['bold']
+                        nouveau_run.font.italic = style['italic']
+                        nouveau_run.font.underline = style['underline']
+                        if style['color']:
+                            nouveau_run.font.color.rgb = style['color']
+
+st.title("🚀 Générateur PPTX Final (Placeholders invisibles si vide)")
 
 fichier_excel = st.file_uploader("📥 Charge ton fichier Excel", type=["xlsx"])
 fichier_pptx = st.file_uploader("📥 Charge ton modèle PowerPoint", type=["pptx"])
@@ -63,8 +69,7 @@ if fichier_excel and fichier_pptx:
     for slide, (_, projet) in zip(prs.slides, donnees.iterrows()):
         for placeholder, colonne in placeholders.items():
             valeur = projet[colonne]
-            if pd.notna(valeur):
-                remplacer_placeholder(slide, placeholder, str(valeur))
+            remplacer_placeholder(slide, placeholder, str(valeur) if pd.notna(valeur) else "")
 
     pptx_io = BytesIO()
     prs.save(pptx_io)
